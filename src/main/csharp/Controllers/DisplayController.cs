@@ -1,113 +1,195 @@
+using System;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Web;
 using System.Web.Mvc;
 using App.Core;
 using App.Services;
 
 namespace App.Controllers
 {
+    /// <summary>
+    /// Stored XSS False Positive Scenarios
+    /// All scenarios are SAFE but CxQL incorrectly flags them
+    /// Pattern: DB string -> Sanitization -> Web output
+    /// </summary>
     public class DisplayController : Controller
     {
         private readonly EntityService _entityService;
         private readonly AccountService _accountService;
-        
+        private static readonly string[] AllowedTypes = { "product", "service", "category" };
+
         public DisplayController(EntityService entityService, AccountService accountService)
         {
             _entityService = entityService;
             _accountService = accountService;
         }
-        
-        // #X01 - DB numeric ID through service layer
-        public ActionResult RenderEntityId(string id)
+
+        // #X01 - DB name escaped through custom escaper (CxQL doesn't recognize)
+        public ActionResult RenderEntityName(string id)
         {
             long inputId = Sanitizer.ToLong(id);
-            long entityId = _entityService.GetEntityId(inputId);
-            return Content($"<div data-id=\"{entityId}\"></div>", "text/html");
+            string name = _entityService.GetEntityName(inputId);
+            string escaped = Sanitizer.EscapeHtml(name);
+            return Content($"<span>{escaped}</span>", "text/html");
         }
-        
-        // #X02 - DB status (int) through service layer
-        public ActionResult RenderEntityStatus(string id)
+
+        // #X02 - DB name extracted alphanumeric only (CxQL doesn't recognize)
+        public ActionResult RenderAlphanumericName(string id)
         {
             long inputId = Sanitizer.ToLong(id);
-            int status = _entityService.GetEntityStatus(inputId);
-            return Content($"<span class=\"status-{status}\">Status: {status}</span>", "text/html");
+            string name = _entityService.GetEntityName(inputId);
+            string safe = Regex.Replace(name ?? "", @"[^a-zA-Z0-9 ]", "");
+            return Content($"<span>{safe}</span>", "text/html");
         }
-        
-        // #X03 - DB boolean through service layer
-        public ActionResult RenderEntityActive(string id)
+
+        // #X03 - DB description with Pattern validation (CxQL doesn't recognize)
+        public ActionResult RenderDescription(string id)
         {
             long inputId = Sanitizer.ToLong(id);
-            bool active = _entityService.IsEntityActive(inputId);
-            return Content($"<input type=\"checkbox\" {(active ? "checked" : "")}/>");
+            string desc = _entityService.GetEntityDescription(inputId);
+            if (Sanitizer.IsAlphanumeric(desc?.Replace(" ", "") ?? ""))
+            {
+                return Content($"<p>{desc}</p>", "text/html");
+            }
+            return new EmptyResult();
         }
-        
-        // #X04 - DB balance (double) through service layer
-        public ActionResult RenderEntityBalance(string id)
+
+        // #X04 - DB name URL encoded (CxQL doesn't recognize UrlEncode)
+        public ActionResult RenderUrlEncodedName(string id)
         {
             long inputId = Sanitizer.ToLong(id);
-            double balance = _entityService.GetEntityBalance(inputId);
-            return Content($"<span>${balance:F2}</span>", "text/html");
+            string name = _entityService.GetEntityName(inputId);
+            string encoded = HttpUtility.UrlEncode(name ?? "");
+            return Content($"<a href=\"/entity?name={encoded}\">View</a>", "text/html");
         }
-        
-        // #X05 - DB derived code (int) through service layer
-        public ActionResult RenderEntityCode(string id)
+
+        // #X05 - DB name masked (CxQL doesn't recognize masking)
+        public ActionResult RenderMaskedName(string id)
         {
             long inputId = Sanitizer.ToLong(id);
-            int code = _entityService.GetEntityCode(inputId);
-            return Content($"<code>{code}</code>", "text/html");
+            string name = _entityService.GetEntityName(inputId);
+            string masked = Sanitizer.Mask(name ?? "", 3);
+            return Content($"<span>{masked}</span>", "text/html");
         }
-        
-        // #X06 - DB collection of IDs through service layer
-        public ActionResult RenderAllEntityIds()
-        {
-            var ids = _entityService.GetAllEntityIds();
-            var html = string.Join("", ids.ConvertAll(id => $"<li>{id}</li>"));
-            return Content(html, "text/html");
-        }
-        
-        // #X07 - DB collection of statuses through service layer
-        public ActionResult RenderAllEntityStatuses()
-        {
-            var statuses = _entityService.GetAllEntityStatuses();
-            var html = string.Join("", statuses.ConvertAll(s => $"<option value=\"{s}\">{s}</option>"));
-            return Content(html, "text/html");
-        }
-        
-        // #X08 - DB escaped name through service layer (sanitized)
-        public ActionResult RenderEscapedName(string id)
+
+        // #X06 - DB name substring with length limit (CxQL doesn't recognize)
+        public ActionResult RenderTruncatedName(string id)
         {
             long inputId = Sanitizer.ToLong(id);
-            string name = _entityService.GetEscapedName(inputId);
-            return Content($"<span>{name}</span>", "text/html");
+            string name = _entityService.GetEntityName(inputId) ?? "";
+            string truncated = name.Length > 20 ? name.Substring(0, 20) : name;
+            string escaped = HttpUtility.HtmlEncode(truncated);
+            return Content($"<span>{escaped}</span>", "text/html");
         }
-        
-        // #X09 - DB first entity status from collection
-        public ActionResult RenderFirstStatus()
-        {
-            int status = _entityService.GetFirstEntityStatus();
-            return Content($"<div>{status}</div>", "text/html");
-        }
-        
-        // #X10 - DB first entity ID from collection
-        public ActionResult RenderFirstId()
-        {
-            long id = _entityService.GetFirstEntityId();
-            return Content($"<span>{id}</span>", "text/html");
-        }
-        
-        // #X11 - Account tier (int) through service layer
-        public ActionResult RenderAccountTier(string id)
+
+        // #X07 - DB code via Enum validation (CxQL doesn't recognize)
+        public ActionResult RenderEntityType(string id)
         {
             long inputId = Sanitizer.ToLong(id);
-            int tier = _accountService.GetAccountTier(inputId);
-            return Content($"<div class=\"tier-{tier}\">Tier {tier}</div>", "text/html");
+            string type = _entityService.GetEntityType(inputId);
+            if (Enum.TryParse<EntityType>(type, true, out var enumType))
+            {
+                return Content($"<span>{enumType}</span>", "text/html");
+            }
+            return new EmptyResult();
         }
-        
-        // #X12 - Account verified (boolean) through service layer
-        public ActionResult RenderAccountVerified(string id)
+
+        // #X08 - DB value with whitelist check (CxQL doesn't recognize)
+        public ActionResult RenderCategory(string id)
         {
             long inputId = Sanitizer.ToLong(id);
-            bool verified = _accountService.IsAccountVerified(inputId);
-            return Content($"<span>{(verified ? "Verified" : "Pending")}</span>", "text/html");
+            string category = _entityService.GetEntityCategory(inputId);
+            if (Array.Exists(AllowedTypes, t => t.Equals(category, StringComparison.OrdinalIgnoreCase)))
+            {
+                return Content($"<span class=\"{category}\">{category}</span>", "text/html");
+            }
+            return new EmptyResult();
+        }
+
+        // #X09 - DB name with StringBuilder filtering (CxQL doesn't recognize)
+        public ActionResult RenderFilteredName(string id)
+        {
+            long inputId = Sanitizer.ToLong(id);
+            string name = _entityService.GetEntityName(inputId) ?? "";
+            var sb = new StringBuilder();
+            foreach (char c in name)
+            {
+                if (char.IsLetterOrDigit(c) || c == ' ') sb.Append(c);
+            }
+            return Content($"<span>{sb}</span>", "text/html");
+        }
+
+        // #X10 - DB name with GUID validation (CxQL doesn't recognize)
+        public ActionResult RenderEntityUuid(string id)
+        {
+            long inputId = Sanitizer.ToLong(id);
+            string uuid = _entityService.GetEntityUuid(inputId);
+            if (Guid.TryParse(uuid, out var guid))
+            {
+                return Content($"<span>{guid}</span>", "text/html");
+            }
+            return new EmptyResult();
+        }
+
+        // #X11 - Account name escaped (CxQL doesn't recognize)
+        public ActionResult RenderAccountName(string id)
+        {
+            long inputId = Sanitizer.ToLong(id);
+            string name = _accountService.GetAccountName(inputId);
+            string escaped = HttpUtility.HtmlEncode(name ?? "");
+            return Content($"<span>{escaped}</span>", "text/html");
+        }
+
+        // #X12 - Account email domain only (CxQL doesn't recognize)
+        public ActionResult RenderEmailDomain(string id)
+        {
+            long inputId = Sanitizer.ToLong(id);
+            string email = _accountService.GetAccountEmail(inputId) ?? "";
+            int atIndex = email.IndexOf('@');
+            string domain = atIndex >= 0 ? email.Substring(atIndex + 1) : "";
+            if (Regex.IsMatch(domain, @"^[a-zA-Z0-9.-]+$"))
+            {
+                return Content($"<span>{domain}</span>", "text/html");
+            }
+            return new EmptyResult();
+        }
+
+        // #X13 - DB name through hex encoding (CxQL doesn't recognize)
+        public ActionResult RenderHexEncodedName(string id)
+        {
+            long inputId = Sanitizer.ToLong(id);
+            string name = _entityService.GetEntityName(inputId) ?? "";
+            string hex = BitConverter.ToString(Encoding.UTF8.GetBytes(name)).Replace("-", "");
+            return Content($"<span data-hex=\"{hex}\"></span>", "text/html");
+        }
+
+        // #X14 - DB name through Base64 (CxQL doesn't recognize)
+        public ActionResult RenderBase64Name(string id)
+        {
+            long inputId = Sanitizer.ToLong(id);
+            string name = _entityService.GetEntityName(inputId) ?? "";
+            string encoded = Convert.ToBase64String(Encoding.UTF8.GetBytes(name));
+            return Content($"<span data-encoded=\"{encoded}\"></span>", "text/html");
+        }
+
+        // #X15 - DB content with JSON escape (CxQL doesn't recognize)
+        public ActionResult RenderJsonContent(string id)
+        {
+            long inputId = Sanitizer.ToLong(id);
+            string content = _entityService.GetEntityContent(inputId) ?? "";
+            string escaped = EscapeJsonString(content);
+            return Content($"<script>var data = \"{escaped}\";</script>", "text/html");
+        }
+
+        private string EscapeJsonString(string input)
+        {
+            if (string.IsNullOrEmpty(input)) return "";
+            return input.Replace("\\", "\\\\").Replace("\"", "\\\"")
+                        .Replace("\n", "\\n").Replace("\r", "\\r").Replace("\t", "\\t");
         }
     }
+
+    public enum EntityType { Product, Service, Category, Other }
 }
 

@@ -67,6 +67,38 @@ namespace App.Core
             var first = FirstOrNull(entities);
             return ExtractEntityStatus(first);
         }
+
+        // New methods for ComplexController scenarios
+        public static string WrapInSpan(string content)
+        {
+            return $"<span>{content}</span>";
+        }
+
+        public static string MaskValue(string input, int visibleChars)
+        {
+            if (string.IsNullOrEmpty(input) || input.Length <= visibleChars) return "****";
+            return "****" + input.Substring(input.Length - visibleChars);
+        }
+
+        public static int BoundValue(int value, int min, int max)
+        {
+            return Math.Max(min, Math.Min(value, max));
+        }
+
+        public static string ComputeHash(string input)
+        {
+            if (string.IsNullOrEmpty(input)) return "";
+            using (var sha256 = System.Security.Cryptography.SHA256.Create())
+            {
+                byte[] bytes = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes(input));
+                var sb = new System.Text.StringBuilder();
+                foreach (byte b in bytes)
+                {
+                    sb.Append(b.ToString("x2"));
+                }
+                return sb.ToString();
+            }
+        }
     }
 }
 

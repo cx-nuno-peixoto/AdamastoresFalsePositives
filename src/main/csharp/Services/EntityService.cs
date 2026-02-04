@@ -66,11 +66,48 @@ namespace App.Services
             var entities = _repository.FindAll();
             return entities.Count == 0 ? -1 : entities[0].Status;
         }
-        
+
         public long GetFirstEntityId()
         {
             var entities = _repository.FindAll();
             return entities.Count == 0 ? 0L : entities[0].Id;
+        }
+
+        // New methods for DisplayController scenarios
+        public string GetEntityName(long id)
+        {
+            var entity = _repository.FindById(id);
+            return entity?.Name ?? "";
+        }
+
+        public string GetEntityDescription(long id)
+        {
+            var entity = _repository.FindById(id);
+            return entity?.Description ?? "";
+        }
+
+        public string GetEntityType(long id)
+        {
+            var entity = _repository.FindById(id);
+            return entity?.Type ?? "";
+        }
+
+        public string GetEntityCategory(long id)
+        {
+            var entity = _repository.FindById(id);
+            return entity?.Category ?? "";
+        }
+
+        public string GetEntityUuid(long id)
+        {
+            var entity = _repository.FindById(id);
+            return entity?.Uuid ?? "";
+        }
+
+        public string GetEntityContent(long id)
+        {
+            var entity = _repository.FindById(id);
+            return entity?.Content ?? "";
         }
     }
 }

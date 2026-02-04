@@ -8,7 +8,12 @@ namespace App.Models
         public int Status { get; set; }
         public bool Active { get; set; }
         public double Balance { get; set; }
-        
+        public string Description { get; set; }
+        public string Type { get; set; }
+        public string Category { get; set; }
+        public string Uuid { get; set; }
+        public string Content { get; set; }
+
         public int Code => (int)(Id % 1000);
         public long Timestamp => System.DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     }

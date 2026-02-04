@@ -63,5 +63,50 @@ public class AccountService {
             .map(Account::getMaskedSsn)
             .collect(Collectors.toList());
     }
+
+    // New methods for Privacy Violation scenarios
+    public String getSsn(long id) throws SQLException {
+        Optional<Account> account = repository.findById(id);
+        return account.map(Account::getSsn).orElse("");
+    }
+
+    public String getAccountNumber(long id) throws SQLException {
+        Optional<Account> account = repository.findById(id);
+        return account.map(Account::getAccountNumber).orElse("");
+    }
+
+    public String getPassword(long id) throws SQLException {
+        Optional<Account> account = repository.findById(id);
+        return account.map(Account::getPassword).orElse("");
+    }
+
+    public String getCreditCardNumber(long id) throws SQLException {
+        Optional<Account> account = repository.findById(id);
+        return account.map(Account::getCreditCardNumber).orElse("");
+    }
+
+    public String getEmail(long id) throws SQLException {
+        Optional<Account> account = repository.findById(id);
+        return account.map(Account::getEmail).orElse("");
+    }
+
+    public String getPhone(long id) throws SQLException {
+        Optional<Account> account = repository.findById(id);
+        return account.map(Account::getPhone).orElse("");
+    }
+
+    public String getFullName(long id) throws SQLException {
+        Optional<Account> account = repository.findById(id);
+        return account.map(Account::getFullName).orElse("");
+    }
+
+    public String getAccountName(long id) throws SQLException {
+        Optional<Account> account = repository.findById(id);
+        return account.map(Account::getAccountName).orElse("");
+    }
+
+    public String getAccountEmail(long id) throws SQLException {
+        return getEmail(id);
+    }
 }
 

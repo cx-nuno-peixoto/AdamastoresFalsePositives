@@ -62,10 +62,41 @@ public class EntityService {
         List<Entity> entities = repository.findAll();
         return entities.isEmpty() ? -1 : entities.get(0).getStatus();
     }
-    
+
     public long getFirstEntityId() throws SQLException {
         List<Entity> entities = repository.findAll();
         return entities.isEmpty() ? 0L : entities.get(0).getId();
+    }
+
+    // New methods for Stored XSS scenarios
+    public String getEntityName(long id) throws SQLException {
+        Optional<Entity> entity = repository.findById(id);
+        return entity.map(Entity::getName).orElse("");
+    }
+
+    public String getEntityDescription(long id) throws SQLException {
+        Optional<Entity> entity = repository.findById(id);
+        return entity.map(Entity::getDescription).orElse("");
+    }
+
+    public String getEntityType(long id) throws SQLException {
+        Optional<Entity> entity = repository.findById(id);
+        return entity.map(Entity::getType).orElse("OTHER");
+    }
+
+    public String getEntityCategory(long id) throws SQLException {
+        Optional<Entity> entity = repository.findById(id);
+        return entity.map(Entity::getCategory).orElse("other");
+    }
+
+    public String getEntityUuid(long id) throws SQLException {
+        Optional<Entity> entity = repository.findById(id);
+        return entity.map(Entity::getUuid).orElse("00000000-0000-0000-0000-000000000000");
+    }
+
+    public String getEntityContent(long id) throws SQLException {
+        Optional<Entity> entity = repository.findById(id);
+        return entity.map(Entity::getContent).orElse("");
     }
 }
 

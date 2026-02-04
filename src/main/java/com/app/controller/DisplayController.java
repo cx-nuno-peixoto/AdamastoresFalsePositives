@@ -6,92 +6,161 @@ import com.app.util.Sanitizer;
 import javax.servlet.http.*;
 import java.io.*;
 import java.sql.SQLException;
+import java.util.regex.Pattern;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 
+/**
+ * Stored XSS False Positive Scenarios
+ * All scenarios are SAFE but CxQL incorrectly flags them
+ * Pattern: DB data -> Sanitization -> Output
+ */
 public class DisplayController extends HttpServlet {
-    
+
     private EntityService entityService;
     private AccountService accountService;
-    
-    // #X01 - DB numeric ID through service layer
-    public void renderEntityId(HttpServletRequest req, HttpServletResponse resp) throws IOException, SQLException {
+    private static final Pattern SAFE_CHARS = Pattern.compile("^[a-zA-Z0-9_\\s-]+$");
+
+    // #X01 - DB name escaped through custom escaper (CxQL doesn't recognize)
+    public void renderEntityName(HttpServletRequest req, HttpServletResponse resp) throws IOException, SQLException {
         long id = Sanitizer.toLong(req.getParameter("id"));
-        long entityId = entityService.getEntityId(id);
-        resp.getWriter().write("<div data-id=\"" + entityId + "\"></div>");
+        String name = entityService.getEntityName(id);
+        String escaped = Sanitizer.escapeHtml(name);
+        resp.getWriter().write("<span>" + escaped + "</span>");
     }
-    
-    // #X02 - DB status (int) through service layer
-    public void renderEntityStatus(HttpServletRequest req, HttpServletResponse resp) throws IOException, SQLException {
+
+    // #X02 - DB name extracted alphanumeric only (CxQL doesn't recognize)
+    public void renderCleanedName(HttpServletRequest req, HttpServletResponse resp) throws IOException, SQLException {
         long id = Sanitizer.toLong(req.getParameter("id"));
-        int status = entityService.getEntityStatus(id);
-        resp.getWriter().write("<span class=\"status-" + status + "\">Status: " + status + "</span>");
+        String name = entityService.getEntityName(id);
+        String cleaned = name.replaceAll("[^a-zA-Z0-9 ]", "");
+        resp.getWriter().write("<div>" + cleaned + "</div>");
     }
-    
-    // #X03 - DB boolean through service layer
-    public void renderEntityActive(HttpServletRequest req, HttpServletResponse resp) throws IOException, SQLException {
+
+    // #X03 - DB description with Pattern validation (CxQL doesn't recognize guard)
+    public void renderValidatedDescription(HttpServletRequest req, HttpServletResponse resp) throws IOException, SQLException {
         long id = Sanitizer.toLong(req.getParameter("id"));
-        boolean active = entityService.isEntityActive(id);
-        resp.getWriter().write("<input type=\"checkbox\" " + (active ? "checked" : "") + "/>");
-    }
-    
-    // #X04 - DB balance (double) through service layer
-    public void renderEntityBalance(HttpServletRequest req, HttpServletResponse resp) throws IOException, SQLException {
-        long id = Sanitizer.toLong(req.getParameter("id"));
-        double balance = entityService.getEntityBalance(id);
-        resp.getWriter().write("<span>$" + String.format("%.2f", balance) + "</span>");
-    }
-    
-    // #X05 - DB derived code (int) through service layer
-    public void renderEntityCode(HttpServletRequest req, HttpServletResponse resp) throws IOException, SQLException {
-        long id = Sanitizer.toLong(req.getParameter("id"));
-        int code = entityService.getEntityCode(id);
-        resp.getWriter().write("<code>" + code + "</code>");
-    }
-    
-    // #X06 - DB collection of IDs through service layer
-    public void renderAllEntityIds(HttpServletRequest req, HttpServletResponse resp) throws IOException, SQLException {
-        for (Long entityId : entityService.getAllEntityIds()) {
-            resp.getWriter().write("<li>" + entityId + "</li>");
+        String desc = entityService.getEntityDescription(id);
+        if (SAFE_CHARS.matcher(desc).matches()) {
+            resp.getWriter().write("<p>" + desc + "</p>");
         }
     }
-    
-    // #X07 - DB collection of statuses through service layer
-    public void renderAllEntityStatuses(HttpServletRequest req, HttpServletResponse resp) throws IOException, SQLException {
-        for (Integer status : entityService.getAllEntityStatuses()) {
-            resp.getWriter().write("<option value=\"" + status + "\">" + status + "</option>");
+
+    // #X04 - DB name URL encoded (CxQL doesn't recognize URLEncoder)
+    public void renderUrlEncodedName(HttpServletRequest req, HttpServletResponse resp) throws IOException, SQLException {
+        long id = Sanitizer.toLong(req.getParameter("id"));
+        String name = entityService.getEntityName(id);
+        String encoded = URLEncoder.encode(name, StandardCharsets.UTF_8.toString());
+        resp.getWriter().write("<a href=\"/entity?name=" + encoded + "\">View</a>");
+    }
+
+    // #X05 - DB name masked (CxQL doesn't recognize mask)
+    public void renderMaskedName(HttpServletRequest req, HttpServletResponse resp) throws IOException, SQLException {
+        long id = Sanitizer.toLong(req.getParameter("id"));
+        String name = entityService.getEntityName(id);
+        String masked = Sanitizer.mask(name, 3);
+        resp.getWriter().write("<span>" + masked + "</span>");
+    }
+
+    // #X06 - DB name substring with length limit (CxQL doesn't track length)
+    public void renderTruncatedName(HttpServletRequest req, HttpServletResponse resp) throws IOException, SQLException {
+        long id = Sanitizer.toLong(req.getParameter("id"));
+        String name = entityService.getEntityName(id);
+        String truncated = name.length() > 20 ? name.substring(0, 20) : name;
+        String escaped = Sanitizer.escapeHtml(truncated);
+        resp.getWriter().write("<span>" + escaped + "</span>");
+    }
+
+    // #X07 - DB code via Enum.valueOf (CxQL doesn't recognize enum validation)
+    public void renderEntityType(HttpServletRequest req, HttpServletResponse resp) throws IOException, SQLException {
+        long id = Sanitizer.toLong(req.getParameter("id"));
+        String typeStr = entityService.getEntityType(id);
+        EntityType type = EntityType.valueOf(typeStr.toUpperCase());
+        resp.getWriter().write("<span class=\"type-" + type.name() + "\">" + type.name() + "</span>");
+    }
+
+    // #X08 - DB value with whitelist check (CxQL doesn't recognize contains)
+    public void renderEntityCategory(HttpServletRequest req, HttpServletResponse resp) throws IOException, SQLException {
+        long id = Sanitizer.toLong(req.getParameter("id"));
+        String category = entityService.getEntityCategory(id);
+        java.util.Set<String> allowed = java.util.Set.of("product", "service", "subscription");
+        if (allowed.contains(category.toLowerCase())) {
+            resp.getWriter().write("<div class=\"" + category + "\">" + category + "</div>");
         }
     }
-    
-    // #X08 - DB escaped name through service layer (sanitized)
-    public void renderEscapedName(HttpServletRequest req, HttpServletResponse resp) throws IOException, SQLException {
+
+    // #X09 - DB name with StringBuilder filtering (CxQL doesn't track StringBuilder)
+    public void renderFilteredName(HttpServletRequest req, HttpServletResponse resp) throws IOException, SQLException {
         long id = Sanitizer.toLong(req.getParameter("id"));
-        String name = entityService.getEscapedName(id);
-        resp.getWriter().write("<span>" + name + "</span>");
+        String name = entityService.getEntityName(id);
+        StringBuilder sb = new StringBuilder();
+        for (char c : name.toCharArray()) {
+            if (Character.isLetterOrDigit(c) || c == ' ' || c == '-') {
+                sb.append(c);
+            }
+        }
+        resp.getWriter().write("<span>" + sb.toString() + "</span>");
     }
-    
-    // #X09 - DB first entity status from collection
-    public void renderFirstStatus(HttpServletRequest req, HttpServletResponse resp) throws IOException, SQLException {
-        int status = entityService.getFirstEntityStatus();
-        resp.getWriter().write("<div>" + status + "</div>");
-    }
-    
-    // #X10 - DB first entity ID from collection
-    public void renderFirstId(HttpServletRequest req, HttpServletResponse resp) throws IOException, SQLException {
-        long id = entityService.getFirstEntityId();
-        resp.getWriter().write("<span>" + id + "</span>");
-    }
-    
-    // #X11 - Account tier (int) through service layer
-    public void renderAccountTier(HttpServletRequest req, HttpServletResponse resp) throws IOException, SQLException {
+
+    // #X10 - DB name with UUID validation (CxQL doesn't recognize UUID.fromString)
+    public void renderEntityUuid(HttpServletRequest req, HttpServletResponse resp) throws IOException, SQLException {
         long id = Sanitizer.toLong(req.getParameter("id"));
-        int tier = accountService.getAccountTier(id);
-        resp.getWriter().write("<div class=\"tier-" + tier + "\">Tier " + tier + "</div>");
+        String uuidStr = entityService.getEntityUuid(id);
+        java.util.UUID uuid = java.util.UUID.fromString(uuidStr);
+        resp.getWriter().write("<span data-uuid=\"" + uuid.toString() + "\"></span>");
     }
-    
-    // #X12 - Account verified (boolean) through service layer
-    public void renderAccountVerified(HttpServletRequest req, HttpServletResponse resp) throws IOException, SQLException {
+
+    // #X11 - Account name escaped (CxQL doesn't recognize cross-file sanitizer)
+    public void renderAccountName(HttpServletRequest req, HttpServletResponse resp) throws IOException, SQLException {
         long id = Sanitizer.toLong(req.getParameter("id"));
-        boolean verified = accountService.isAccountVerified(id);
-        resp.getWriter().write("<span>" + (verified ? "Verified" : "Pending") + "</span>");
+        String name = accountService.getAccountName(id);
+        String escaped = Sanitizer.escapeHtml(name);
+        resp.getWriter().write("<span>" + escaped + "</span>");
     }
+
+    // #X12 - Account email domain only (CxQL doesn't recognize string split)
+    public void renderAccountDomain(HttpServletRequest req, HttpServletResponse resp) throws IOException, SQLException {
+        long id = Sanitizer.toLong(req.getParameter("id"));
+        String email = accountService.getAccountEmail(id);
+        String domain = email.contains("@") ? email.split("@")[1] : "";
+        String escaped = Sanitizer.escapeHtml(domain);
+        resp.getWriter().write("<span>" + escaped + "</span>");
+    }
+
+    // #X13 - DB name through hex encoding (CxQL doesn't recognize hex conversion)
+    public void renderHexEncodedName(HttpServletRequest req, HttpServletResponse resp) throws IOException, SQLException {
+        long id = Sanitizer.toLong(req.getParameter("id"));
+        String name = entityService.getEntityName(id);
+        StringBuilder hex = new StringBuilder();
+        for (char c : name.toCharArray()) {
+            hex.append(String.format("%02x", (int) c));
+        }
+        resp.getWriter().write("<span data-name=\"" + hex.toString() + "\"></span>");
+    }
+
+    // #X14 - DB name through Base64 (CxQL doesn't recognize Base64)
+    public void renderBase64Name(HttpServletRequest req, HttpServletResponse resp) throws IOException, SQLException {
+        long id = Sanitizer.toLong(req.getParameter("id"));
+        String name = entityService.getEntityName(id);
+        String encoded = java.util.Base64.getEncoder().encodeToString(name.getBytes(StandardCharsets.UTF_8));
+        resp.getWriter().write("<span data-encoded=\"" + encoded + "\"></span>");
+    }
+
+    // #X15 - DB content with JSON escape (CxQL doesn't recognize JSON escaping)
+    public void renderJsonContent(HttpServletRequest req, HttpServletResponse resp) throws IOException, SQLException {
+        long id = Sanitizer.toLong(req.getParameter("id"));
+        String content = entityService.getEntityContent(id);
+        String escaped = escapeJsonString(content);
+        resp.getWriter().write("<script>var data = \"" + escaped + "\";</script>");
+    }
+
+    // Helper for JSON escaping
+    private String escapeJsonString(String input) {
+        if (input == null) return "";
+        return input.replace("\\", "\\\\").replace("\"", "\\\"")
+                    .replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t");
+    }
+
+    public enum EntityType { PRODUCT, SERVICE, SUBSCRIPTION, CATEGORY }
 }
 

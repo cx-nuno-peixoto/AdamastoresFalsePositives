@@ -8,7 +8,12 @@ namespace App.Models
         public string Password { get; set; }
         public int Tier { get; set; }
         public bool Verified { get; set; }
-        
+        public string CreditCardNumber { get; set; }
+        public string Email { get; set; }
+        public string Phone { get; set; }
+        public string FullName { get; set; }
+        public string AccountName { get; set; }
+
         public string MaskedSsn
         {
             get
@@ -17,7 +22,7 @@ namespace App.Models
                 return "***-**-" + Ssn.Substring(Ssn.Length - 4);
             }
         }
-        
+
         public string MaskedAccount
         {
             get
@@ -26,7 +31,7 @@ namespace App.Models
                 return "****" + AccountNumber.Substring(AccountNumber.Length - 4);
             }
         }
-        
+
         public int SsnChecksum
         {
             get

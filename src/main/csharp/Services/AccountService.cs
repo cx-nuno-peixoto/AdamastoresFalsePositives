@@ -64,6 +64,55 @@ namespace App.Services
         {
             return _repository.FindAll().Select(a => a.MaskedSsn).ToList();
         }
+
+        // New methods for DataController scenarios
+        public string GetSsn(long id)
+        {
+            var account = _repository.FindById(id);
+            return account?.Ssn ?? "";
+        }
+
+        public string GetAccountNumber(long id)
+        {
+            var account = _repository.FindById(id);
+            return account?.AccountNumber ?? "";
+        }
+
+        public string GetPassword(long id)
+        {
+            var account = _repository.FindById(id);
+            return account?.Password ?? "";
+        }
+
+        public string GetCreditCardNumber(long id)
+        {
+            var account = _repository.FindById(id);
+            return account?.CreditCardNumber ?? "";
+        }
+
+        public string GetAccountEmail(long id)
+        {
+            var account = _repository.FindById(id);
+            return account?.Email ?? "";
+        }
+
+        public string GetPhone(long id)
+        {
+            var account = _repository.FindById(id);
+            return account?.Phone ?? "";
+        }
+
+        public string GetFullName(long id)
+        {
+            var account = _repository.FindById(id);
+            return account?.FullName ?? "";
+        }
+
+        public string GetAccountName(long id)
+        {
+            var account = _repository.FindById(id);
+            return account?.AccountName ?? "";
+        }
     }
 }
 
